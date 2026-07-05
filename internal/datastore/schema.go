@@ -1,3 +1,11 @@
+package datastore
+
+import (
+	"context"
+	"database/sql"
+)
+
+const userSchema = `
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS "users" (
@@ -6,3 +14,9 @@ CREATE TABLE IF NOT EXISTS "users" (
     email TEXT NOT NULL UNIQUE,
     description TEXT NOT NULL DEFAULT ''
 );
+`
+
+func EnsureSchema(ctx context.Context, db *sql.DB) error {
+	_, err := db.ExecContext(ctx, userSchema)
+	return err
+}

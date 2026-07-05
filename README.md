@@ -115,6 +115,29 @@ Response:
 }
 ```
 
+List users:
+
+```sh
+curl http://localhost:8080/user/list
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "users fetched successfully",
+  "data": [
+    {
+      "uuid": "f4b2fe41-4b68-42a9-8db2-8563dc5c7eb9",
+      "fullname": "Jane Doe",
+      "email": "jane@example.com",
+      "description": "Example user"
+    }
+  ]
+}
+```
+
 ## Test
 
 ```sh

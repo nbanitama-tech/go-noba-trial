@@ -12,10 +12,12 @@ var ErrInvalidUserInput = errors.New("invalid user input")
 
 type UserRepository interface {
 	Create(ctx context.Context, input domain.CreateUserInput) (domain.User, error)
+	List(ctx context.Context) ([]domain.User, error)
 }
 
 type UserUsecase interface {
 	Add(ctx context.Context, input domain.CreateUserInput) (domain.User, error)
+	List(ctx context.Context) ([]domain.User, error)
 }
 
 type userUsecase struct {
@@ -38,4 +40,8 @@ func (u *userUsecase) Add(ctx context.Context, input domain.CreateUserInput) (do
 	}
 
 	return u.repository.Create(ctx, input)
+}
+
+func (u *userUsecase) List(ctx context.Context) ([]domain.User, error) {
+	return u.repository.List(ctx)
 }

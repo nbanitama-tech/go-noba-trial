@@ -19,6 +19,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ping", handler.Ping)
 	mux.HandleFunc("/add", handler.AddUser)
+	mux.HandleFunc("/user/list", handler.ListUsers)
 
 	return mux
 }

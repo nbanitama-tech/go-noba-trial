@@ -17,7 +17,10 @@ import (
 
 func main() {
 	cfg := config.Load()
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true,
+	}))
+	slog.SetDefault(logger)
 
 	dbCtx, dbCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer dbCancel()
@@ -28,6 +31,11 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
+
+	if err := datastore.EnsureSchema(dbCtx, db); err != nil {
+		logger.Error("failed to ensure postgres schema", "error", err)
+		os.Exit(1)
+	}
 
 	healthUsecase := usecase.NewHealthUsecase(cfg.ServiceName)
 	userRepository := datastore.NewUserRepository(db)

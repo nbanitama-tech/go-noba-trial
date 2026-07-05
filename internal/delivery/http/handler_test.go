@@ -16,12 +16,17 @@ import (
 )
 
 type fakeUserUsecase struct {
-	user domain.User
-	err  error
+	user  domain.User
+	users []domain.User
+	err   error
 }
 
 func (u fakeUserUsecase) Add(_ context.Context, _ domain.CreateUserInput) (domain.User, error) {
 	return u.user, u.err
+}
+
+func (u fakeUserUsecase) List(_ context.Context) ([]domain.User, error) {
+	return u.users, u.err
 }
 
 func TestPing(t *testing.T) {
@@ -152,5 +157,92 @@ func TestAddUserReturnsInternalServerError(t *testing.T) {
 
 	if response.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, response.Code)
+	}
+}
+
+func TestListUsers(t *testing.T) {
+	router := NewRouter(RouterConfig{
+		HealthUsecase: usecase.NewHealthUsecase("test-service"),
+		UserUsecase: fakeUserUsecase{
+			users: []domain.User{
+				{
+					UUID:        "f4b2fe41-4b68-42a9-8db2-8563dc5c7eb9",
+					Fullname:    "Jane Doe",
+					Email:       "jane@example.com",
+					Description: "Example user",
+				},
+				{
+					UUID:        "5c8a9be7-8d62-4d1f-8cf1-80cb5f1d3c55",
+					Fullname:    "John Smith",
+					Email:       "john@example.com",
+					Description: "Another user",
+				},
+			},
+		},
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+
+	request := httptest.NewRequest(http.MethodGet, "/user/list", nil)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+
+	var responseBody domain.ListUsersResponse
+	if err := json.NewDecoder(response.Body).Decode(&responseBody); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if !responseBody.Success {
+		t.Fatal("expected success response")
+	}
+
+	if len(responseBody.Data) != 2 {
+		t.Fatalf("expected 2 users, got %d", len(responseBody.Data))
+	}
+
+	if responseBody.Total != 2 {
+		t.Fatalf("expected total 2, got %d", responseBody.Total)
+	}
+
+	if responseBody.Data[0].Email != "jane@example.com" {
+		t.Fatalf("expected first email jane@example.com, got %q", responseBody.Data[0].Email)
+	}
+}
+
+func TestListUsersReturnsNilDataWhenEmpty(t *testing.T) {
+	router := NewRouter(RouterConfig{
+		HealthUsecase: usecase.NewHealthUsecase("test-service"),
+		UserUsecase:   fakeUserUsecase{},
+		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+
+	request := httptest.NewRequest(http.MethodGet, "/user/list", nil)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+
+	var responseBody domain.ListUsersResponse
+	if err := json.NewDecoder(response.Body).Decode(&responseBody); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if !responseBody.Success {
+		t.Fatal("expected success response")
+	}
+
+	if responseBody.Data != nil {
+		t.Fatalf("expected nil data, got %#v", responseBody.Data)
+	}
+
+	if responseBody.Total != 0 {
+		t.Fatalf("expected total 0, got %d", responseBody.Total)
 	}
 }
