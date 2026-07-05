@@ -65,7 +65,7 @@ func TestUserUsecaseAddTrimsInputAndCreatesUser(t *testing.T) {
 		t.Fatalf("expected trimmed description, got %q", repository.createInput.Description)
 	}
 
-	if user.Email != "jane@.com" {
+	if user.Email != "jane@example.com" {
 		t.Fatalf("expected created user email jane@example.com, got %q", user.Email)
 	}
 }
