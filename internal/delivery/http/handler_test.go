@@ -1,7 +1,10 @@
 package httpapi
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,6 +14,15 @@ import (
 	"github.com/bytedance/go-noba-trial/internal/domain"
 	"github.com/bytedance/go-noba-trial/internal/usecase"
 )
+
+type fakeUserUsecase struct {
+	user domain.User
+	err  error
+}
+
+func (u fakeUserUsecase) Add(_ context.Context, _ domain.CreateUserInput) (domain.User, error) {
+	return u.user, u.err
+}
 
 func TestPing(t *testing.T) {
 	router := NewRouter(RouterConfig{
@@ -62,5 +74,83 @@ func TestPingRejectsUnsupportedMethod(t *testing.T) {
 
 	if response.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected status %d, got %d", http.StatusMethodNotAllowed, response.Code)
+	}
+}
+
+func TestAddUser(t *testing.T) {
+	router := NewRouter(RouterConfig{
+		HealthUsecase: usecase.NewHealthUsecase("test-service"),
+		UserUsecase: fakeUserUsecase{
+			user: domain.User{
+				UUID:        "f4b2fe41-4b68-42a9-8db2-8563dc5c7eb9",
+				Fullname:    "Jane Doe",
+				Email:       "jane@example.com",
+				Description: "Example user",
+			},
+		},
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+
+	body := bytes.NewBufferString(`{"fullname":"Jane Doe","email":"jane@example.com","description":"Example user"}`)
+	request := httptest.NewRequest(http.MethodPost, "/add", body)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, response.Code)
+	}
+
+	var responseBody domain.GeneralResponse[domain.User]
+	if err := json.NewDecoder(response.Body).Decode(&responseBody); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if !responseBody.Success {
+		t.Fatal("expected success response")
+	}
+
+	if responseBody.Data.Email != "jane@example.com" {
+		t.Fatalf("expected email jane@example.com, got %q", responseBody.Data.Email)
+	}
+}
+
+func TestAddUserReturnsBadRequestForInvalidInput(t *testing.T) {
+	router := NewRouter(RouterConfig{
+		HealthUsecase: usecase.NewHealthUsecase("test-service"),
+		UserUsecase: fakeUserUsecase{
+			err: usecase.ErrInvalidUserInput,
+		},
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+
+	body := bytes.NewBufferString(`{"fullname":"","email":"","description":"Example user"}`)
+	request := httptest.NewRequest(http.MethodPost, "/add", body)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, response.Code)
+	}
+}
+
+func TestAddUserReturnsInternalServerError(t *testing.T) {
+	router := NewRouter(RouterConfig{
+		HealthUsecase: usecase.NewHealthUsecase("test-service"),
+		UserUsecase: fakeUserUsecase{
+			err: errors.New("database failed"),
+		},
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+
+	body := bytes.NewBufferString(`{"fullname":"Jane Doe","email":"jane@example.com","description":"Example user"}`)
+	request := httptest.NewRequest(http.MethodPost, "/add", body)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, response.Code)
 	}
 }

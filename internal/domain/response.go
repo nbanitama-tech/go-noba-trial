@@ -10,3 +10,16 @@ type HealthStatus struct {
 	Service string `json:"service"`
 	Status  string `json:"status"`
 }
+
+type User struct {
+	UUID        string `json:"uuid"`
+	Fullname    string `json:"fullname"`
+	Email       string `json:"email"`
+	Description string `json:"description"`
+}
+
+type CreateUserInput struct {
+	Fullname    string `json:"fullname"`
+	Email       string `json:"email"`
+	Description string `json:"description"`
+}

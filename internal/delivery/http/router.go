@@ -9,14 +9,16 @@ import (
 
 type RouterConfig struct {
 	HealthUsecase usecase.HealthUsecase
+	UserUsecase   usecase.UserUsecase
 	Logger        *slog.Logger
 }
 
 func NewRouter(cfg RouterConfig) http.Handler {
-	handler := NewHandler(cfg.HealthUsecase, cfg.Logger)
+	handler := NewHandler(cfg.HealthUsecase, cfg.UserUsecase, cfg.Logger)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ping", handler.Ping)
+	mux.HandleFunc("/add", handler.AddUser)
 
 	return mux
 }

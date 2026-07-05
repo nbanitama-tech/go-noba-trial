@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bytedance/go-noba-trial/internal/config"
+	"github.com/bytedance/go-noba-trial/internal/datastore"
 	httpapi "github.com/bytedance/go-noba-trial/internal/delivery/http"
 	"github.com/bytedance/go-noba-trial/internal/usecase"
 )
@@ -18,9 +19,22 @@ func main() {
 	cfg := config.Load()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer dbCancel()
+
+	db, err := datastore.OpenPostgres(dbCtx, cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("failed to connect to postgres", "error", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
 	healthUsecase := usecase.NewHealthUsecase(cfg.ServiceName)
+	userRepository := datastore.NewUserRepository(db)
+	userUsecase := usecase.NewUserUsecase(userRepository)
 	router := httpapi.NewRouter(httpapi.RouterConfig{
 		HealthUsecase: healthUsecase,
+		UserUsecase:   userUsecase,
 		Logger:        logger,
 	})
 
