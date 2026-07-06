@@ -17,16 +17,19 @@ Simple Go REST service using clean architecture boundaries.
 go run ./cmd/api
 ```
 
-The service listens on `:8080` by default. Override it with:
+The service reads settings from `config.yaml` by default:
 
-```sh
-HTTP_ADDRESS=:3000 go run ./cmd/api
+```yaml
+http_address: ":8080"
+service_name: "go-noba-trial"
+database_url: "postgres://noba:noba_password@localhost:5432/noba?sslmode=disable"
+bearer_token: "go-noba-trial-token"
 ```
 
-Set the bearer token required by all endpoints:
+Use another config file with `CONFIG_PATH`:
 
 ```sh
-BEARER_TOKEN=my-secret-token go run ./cmd/api
+CONFIG_PATH=./config.local.yaml go run ./cmd/api
 ```
 
 ## Docker
@@ -37,20 +40,19 @@ Build the image:
 docker build -t go-noba-trial .
 ```
 
-Run the container with an existing PostgreSQL database:
+Run the container with an existing PostgreSQL database by mounting a config file whose `database_url` points at that database:
 
 ```sh
 docker run --rm -p 8080:8080 \
-  -e DATABASE_URL='postgres://noba:noba_password@host.docker.internal:5432/noba?sslmode=disable' \
+  -v "$PWD/config.local.yaml:/app/config.yaml:ro" \
   go-noba-trial
 ```
 
-Run with a custom service name:
+Run with a custom config file:
 
 ```sh
 docker run --rm -p 8080:8080 \
-  -e SERVICE_NAME=my-service \
-  -e DATABASE_URL='postgres://noba:noba_password@host.docker.internal:5432/noba?sslmode=disable' \
+  -v "$PWD/config.local.yaml:/app/config.yaml:ro" \
   go-noba-trial
 ```
 
@@ -74,6 +76,7 @@ The compose stack creates PostgreSQL with authenticated access:
 - user: `noba`
 - password: `noba_password`
 - API database URL: `postgres://noba:noba_password@postgres:5432/noba?sslmode=disable`
+- API config file: `config.docker.yaml`
 
 ## Endpoint
 

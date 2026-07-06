@@ -15,11 +15,10 @@ RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 
 COPY --from=builder /bin/api /app/api
+COPY config.yaml /app/config.yaml
 
 USER app
 
 EXPOSE 8080
-
-ENV HTTP_ADDRESS=:8080
 
 ENTRYPOINT ["/app/api"]

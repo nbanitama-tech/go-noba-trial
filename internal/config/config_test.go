@@ -1,53 +1,68 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
-func TestLoadUsesDefaults(t *testing.T) {
-	t.Setenv("HTTP_ADDRESS", "")
-	t.Setenv("SERVICE_NAME", "")
-	t.Setenv("DATABASE_URL", "")
-	t.Setenv("BEARER_TOKEN", "")
+func TestLoadUsesConfiguredPath(t *testing.T) {
+	configPath := writeConfig(t, `
+http_address: ":9090"
+service_name: "custom-service"
+database_url: "postgres://example"
+bearer_token: "custom-token"
+`)
+	t.Setenv("CONFIG_PATH", configPath)
 
-	cfg := Load()
-
-	if cfg.HTTPAddress != defaultHTTPAddress {
-		t.Fatalf("expected default HTTP address %q, got %q", defaultHTTPAddress, cfg.HTTPAddress)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("expected config to load, got error %v", err)
 	}
-
-	if cfg.ServiceName != defaultServiceName {
-		t.Fatalf("expected default service name %q, got %q", defaultServiceName, cfg.ServiceName)
-	}
-
-	if cfg.DatabaseURL != defaultDatabaseURL {
-		t.Fatalf("expected default database URL %q, got %q", defaultDatabaseURL, cfg.DatabaseURL)
-	}
-
-	if cfg.BearerToken != defaultBearerToken {
-		t.Fatalf("expected default bearer token %q, got %q", defaultBearerToken, cfg.BearerToken)
-	}
-}
-
-func TestLoadUsesEnvironmentValues(t *testing.T) {
-	t.Setenv("HTTP_ADDRESS", ":9090")
-	t.Setenv("SERVICE_NAME", "custom-service")
-	t.Setenv("DATABASE_URL", "postgres://example")
-	t.Setenv("BEARER_TOKEN", "custom-token")
-
-	cfg := Load()
 
 	if cfg.HTTPAddress != ":9090" {
-		t.Fatalf("expected HTTP address from environment, got %q", cfg.HTTPAddress)
+		t.Fatalf("expected HTTP address from config file, got %q", cfg.HTTPAddress)
 	}
 
 	if cfg.ServiceName != "custom-service" {
-		t.Fatalf("expected service name from environment, got %q", cfg.ServiceName)
+		t.Fatalf("expected service name from config file, got %q", cfg.ServiceName)
 	}
 
 	if cfg.DatabaseURL != "postgres://example" {
-		t.Fatalf("expected database URL from environment, got %q", cfg.DatabaseURL)
+		t.Fatalf("expected database URL from config file, got %q", cfg.DatabaseURL)
 	}
 
 	if cfg.BearerToken != "custom-token" {
-		t.Fatalf("expected bearer token from environment, got %q", cfg.BearerToken)
+		t.Fatalf("expected bearer token from config file, got %q", cfg.BearerToken)
 	}
+}
+
+func TestLoadFileReturnsErrorForInvalidYAML(t *testing.T) {
+	configPath := writeConfig(t, "http_address: [")
+
+	if _, err := LoadFile(configPath); err == nil {
+		t.Fatal("expected invalid config file to return an error")
+	}
+}
+
+func TestLoadFileReturnsErrorForMissingRequiredField(t *testing.T) {
+	configPath := writeConfig(t, `
+http_address: ":9090"
+service_name: "custom-service"
+database_url: "postgres://example"
+`)
+
+	if _, err := LoadFile(configPath); err == nil {
+		t.Fatal("expected missing config field to return an error")
+	}
+}
+
+func writeConfig(t *testing.T, content string) string {
+	t.Helper()
+
+	configPath := t.TempDir() + "/config.yaml"
+	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	return configPath
 }
