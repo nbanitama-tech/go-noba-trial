@@ -11,6 +11,8 @@ type RouterConfig struct {
 	HealthUsecase usecase.HealthUsecase
 	UserUsecase   usecase.UserUsecase
 	Logger        *slog.Logger
+	BearerToken   string
+	Middlewares   []Middleware
 }
 
 func NewRouter(cfg RouterConfig) http.Handler {
@@ -21,5 +23,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	mux.HandleFunc("/add", handler.AddUser)
 	mux.HandleFunc("/user/list", handler.ListUsers)
 
-	return mux
+	middlewares := append([]Middleware{}, cfg.Middlewares...)
+	if cfg.BearerToken != "" {
+		middlewares = append([]Middleware{bearerAuthMiddleware(cfg.BearerToken)}, middlewares...)
+	}
+
+	return chain(mux, middlewares...)
 }

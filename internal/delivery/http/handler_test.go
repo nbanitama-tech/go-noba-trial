@@ -15,27 +15,45 @@ import (
 	"github.com/bytedance/go-noba-trial/internal/usecase"
 )
 
+const testBearerToken = "test-token"
+
 type fakeUserUsecase struct {
-	user  domain.User
-	users []domain.User
-	err   error
+	user       domain.User
+	users      []domain.User
+	err        error
+	failOnCall bool
 }
 
-func (u fakeUserUsecase) Add(_ context.Context, _ domain.CreateUserInput) (domain.User, error) {
+func (u fakeUserUsecase) Add(context.Context, domain.CreateUserInput) (domain.User, error) {
+	if u.failOnCall {
+		panic("user usecase should not be called")
+	}
+
 	return u.user, u.err
 }
 
-func (u fakeUserUsecase) List(_ context.Context) ([]domain.User, error) {
+func (u fakeUserUsecase) List(context.Context) ([]domain.User, error) {
+	if u.failOnCall {
+		panic("user usecase should not be called")
+	}
+
 	return u.users, u.err
+}
+
+func newAuthorizedRequest(method string, target string, body io.Reader) *http.Request {
+	request := httptest.NewRequest(method, target, body)
+	request.Header.Set("Authorization", "Bearer "+testBearerToken)
+	return request
 }
 
 func TestPing(t *testing.T) {
 	router := NewRouter(RouterConfig{
 		HealthUsecase: usecase.NewHealthUsecase("test-service"),
 		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		BearerToken:   testBearerToken,
 	})
 
-	request := httptest.NewRequest(http.MethodGet, "/ping", nil)
+	request := newAuthorizedRequest(http.MethodGet, "/ping", nil)
 	response := httptest.NewRecorder()
 
 	router.ServeHTTP(response, request)
@@ -70,9 +88,10 @@ func TestPingRejectsUnsupportedMethod(t *testing.T) {
 	router := NewRouter(RouterConfig{
 		HealthUsecase: usecase.NewHealthUsecase("test-service"),
 		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		BearerToken:   testBearerToken,
 	})
 
-	request := httptest.NewRequest(http.MethodPost, "/ping", nil)
+	request := newAuthorizedRequest(http.MethodPost, "/ping", nil)
 	response := httptest.NewRecorder()
 
 	router.ServeHTTP(response, request)
@@ -93,11 +112,12 @@ func TestAddUser(t *testing.T) {
 				Description: "Example user",
 			},
 		},
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		BearerToken: testBearerToken,
 	})
 
 	body := bytes.NewBufferString(`{"fullname":"Jane Doe","email":"jane@example.com","description":"Example user"}`)
-	request := httptest.NewRequest(http.MethodPost, "/add", body)
+	request := newAuthorizedRequest(http.MethodPost, "/add", body)
 	response := httptest.NewRecorder()
 
 	router.ServeHTTP(response, request)
@@ -126,11 +146,12 @@ func TestAddUserReturnsBadRequestForInvalidInput(t *testing.T) {
 		UserUsecase: fakeUserUsecase{
 			err: usecase.ErrInvalidUserInput,
 		},
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		BearerToken: testBearerToken,
 	})
 
 	body := bytes.NewBufferString(`{"fullname":"","email":"","description":"Example user"}`)
-	request := httptest.NewRequest(http.MethodPost, "/add", body)
+	request := newAuthorizedRequest(http.MethodPost, "/add", body)
 	response := httptest.NewRecorder()
 
 	router.ServeHTTP(response, request)
@@ -146,11 +167,12 @@ func TestAddUserReturnsInternalServerError(t *testing.T) {
 		UserUsecase: fakeUserUsecase{
 			err: errors.New("database failed"),
 		},
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		BearerToken: testBearerToken,
 	})
 
 	body := bytes.NewBufferString(`{"fullname":"Jane Doe","email":"jane@example.com","description":"Example user"}`)
-	request := httptest.NewRequest(http.MethodPost, "/add", body)
+	request := newAuthorizedRequest(http.MethodPost, "/add", body)
 	response := httptest.NewRecorder()
 
 	router.ServeHTTP(response, request)
@@ -179,10 +201,11 @@ func TestListUsers(t *testing.T) {
 				},
 			},
 		},
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		BearerToken: testBearerToken,
 	})
 
-	request := httptest.NewRequest(http.MethodGet, "/user/list", nil)
+	request := newAuthorizedRequest(http.MethodGet, "/user/list", nil)
 	response := httptest.NewRecorder()
 
 	router.ServeHTTP(response, request)
@@ -218,9 +241,10 @@ func TestListUsersReturnsNilDataWhenEmpty(t *testing.T) {
 		HealthUsecase: usecase.NewHealthUsecase("test-service"),
 		UserUsecase:   fakeUserUsecase{},
 		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		BearerToken:   testBearerToken,
 	})
 
-	request := httptest.NewRequest(http.MethodGet, "/user/list", nil)
+	request := newAuthorizedRequest(http.MethodGet, "/user/list", nil)
 	response := httptest.NewRecorder()
 
 	router.ServeHTTP(response, request)
@@ -244,5 +268,88 @@ func TestListUsersReturnsNilDataWhenEmpty(t *testing.T) {
 
 	if responseBody.Total != 0 {
 		t.Fatalf("expected total 0, got %d", responseBody.Total)
+	}
+}
+
+func TestRouterRejectsMissingBearerToken(t *testing.T) {
+	router := NewRouter(RouterConfig{
+		HealthUsecase: usecase.NewHealthUsecase("test-service"),
+		UserUsecase: fakeUserUsecase{
+			failOnCall: true,
+		},
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		BearerToken: testBearerToken,
+	})
+
+	request := httptest.NewRequest(http.MethodGet, "/user/list", nil)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, response.Code)
+	}
+
+	var responseBody domain.GeneralResponse[any]
+	if err := json.NewDecoder(response.Body).Decode(&responseBody); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if responseBody.Success {
+		t.Fatal("expected failure response")
+	}
+
+	if responseBody.Message != "unauthorized" {
+		t.Fatalf("expected unauthorized message, got %q", responseBody.Message)
+	}
+}
+
+func TestRouterRejectsInvalidBearerToken(t *testing.T) {
+	router := NewRouter(RouterConfig{
+		HealthUsecase: usecase.NewHealthUsecase("test-service"),
+		UserUsecase: fakeUserUsecase{
+			failOnCall: true,
+		},
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		BearerToken: testBearerToken,
+	})
+
+	request := httptest.NewRequest(http.MethodGet, "/user/list", nil)
+	request.Header.Set("Authorization", "Bearer wrong-token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, response.Code)
+	}
+}
+
+func TestRouterRunsConfiguredMiddlewareAfterBearerAuth(t *testing.T) {
+	router := NewRouter(RouterConfig{
+		HealthUsecase: usecase.NewHealthUsecase("test-service"),
+		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		BearerToken:   testBearerToken,
+		Middlewares: []Middleware{
+			func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("X-Test-Middleware", "executed")
+					next.ServeHTTP(w, r)
+				})
+			},
+		},
+	})
+
+	request := newAuthorizedRequest(http.MethodGet, "/ping", nil)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+
+	if response.Header().Get("X-Test-Middleware") != "executed" {
+		t.Fatal("expected configured middleware to run")
 	}
 }

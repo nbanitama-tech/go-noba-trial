@@ -23,6 +23,12 @@ The service listens on `:8080` by default. Override it with:
 HTTP_ADDRESS=:3000 go run ./cmd/api
 ```
 
+Set the bearer token required by all endpoints:
+
+```sh
+BEARER_TOKEN=my-secret-token go run ./cmd/api
+```
+
 ## Docker
 
 Build the image:
@@ -72,7 +78,8 @@ The compose stack creates PostgreSQL with authenticated access:
 ## Endpoint
 
 ```sh
-curl http://localhost:8080/ping
+curl -H 'Authorization: Bearer go-noba-trial-token' \
+  http://localhost:8080/ping
 ```
 
 Response:
@@ -92,6 +99,7 @@ Add a user:
 
 ```sh
 curl -X POST http://localhost:8080/add \
+  -H 'Authorization: Bearer go-noba-trial-token' \
   -H 'Content-Type: application/json' \
   -d '{
     "fullname": "Jane Doe",
@@ -118,7 +126,8 @@ Response:
 List users:
 
 ```sh
-curl http://localhost:8080/user/list
+curl -H 'Authorization: Bearer go-noba-trial-token' \
+  http://localhost:8080/user/list
 ```
 
 Response:

@@ -44,6 +44,7 @@ func main() {
 		HealthUsecase: healthUsecase,
 		UserUsecase:   userUsecase,
 		Logger:        logger,
+		BearerToken:   cfg.BearerToken,
 	})
 
 	server := &http.Server{

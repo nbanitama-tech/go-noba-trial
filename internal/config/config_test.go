@@ -6,6 +6,7 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("HTTP_ADDRESS", "")
 	t.Setenv("SERVICE_NAME", "")
 	t.Setenv("DATABASE_URL", "")
+	t.Setenv("BEARER_TOKEN", "")
 
 	cfg := Load()
 
@@ -20,12 +21,17 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.DatabaseURL != defaultDatabaseURL {
 		t.Fatalf("expected default database URL %q, got %q", defaultDatabaseURL, cfg.DatabaseURL)
 	}
+
+	if cfg.BearerToken != defaultBearerToken {
+		t.Fatalf("expected default bearer token %q, got %q", defaultBearerToken, cfg.BearerToken)
+	}
 }
 
 func TestLoadUsesEnvironmentValues(t *testing.T) {
 	t.Setenv("HTTP_ADDRESS", ":9090")
 	t.Setenv("SERVICE_NAME", "custom-service")
 	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("BEARER_TOKEN", "custom-token")
 
 	cfg := Load()
 
@@ -39,5 +45,9 @@ func TestLoadUsesEnvironmentValues(t *testing.T) {
 
 	if cfg.DatabaseURL != "postgres://example" {
 		t.Fatalf("expected database URL from environment, got %q", cfg.DatabaseURL)
+	}
+
+	if cfg.BearerToken != "custom-token" {
+		t.Fatalf("expected bearer token from environment, got %q", cfg.BearerToken)
 	}
 }
