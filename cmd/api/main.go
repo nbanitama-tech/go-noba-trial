@@ -10,18 +10,46 @@ import (
 	"time"
 
 	"github.com/bytedance/go-noba-trial/internal/config"
+	"github.com/bytedance/go-noba-trial/internal/datastore"
 	httpapi "github.com/bytedance/go-noba-trial/internal/delivery/http"
 	"github.com/bytedance/go-noba-trial/internal/usecase"
 )
 
 func main() {
-	cfg := config.Load()
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true,
+	}))
+	slog.SetDefault(logger)
+
+	cfg, err := config.Load()
+	if err != nil {
+		logger.Error("failed to load config", "error", err)
+		os.Exit(1)
+	}
+
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer dbCancel()
+
+	db, err := datastore.OpenPostgres(dbCtx, cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("failed to connect to postgres", "error", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	if err := datastore.EnsureSchema(dbCtx, db); err != nil {
+		logger.Error("failed to ensure postgres schema", "error", err)
+		os.Exit(1)
+	}
 
 	healthUsecase := usecase.NewHealthUsecase(cfg.ServiceName)
+	userRepository := datastore.NewUserRepository(db)
+	userUsecase := usecase.NewUserUsecase(userRepository)
 	router := httpapi.NewRouter(httpapi.RouterConfig{
 		HealthUsecase: healthUsecase,
+		UserUsecase:   userUsecase,
 		Logger:        logger,
+		BearerToken:   cfg.BearerToken,
 	})
 
 	server := &http.Server{

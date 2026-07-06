@@ -1,0 +1,4 @@
+http_address: ":8080"
+service_name: "go-noba-trial"
+database_url: "postgres://noba:noba_password@postgres:5432/noba?sslmode=disable"
+bearer_token: "go-noba-trial-token"
